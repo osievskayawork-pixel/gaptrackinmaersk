@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>GAP Logistics — Мої вантажі</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Courier New',monospace;background:#000;color:#fff;min-height:100vh}
+
+.header{background:#000;border-bottom:1px solid #2a2a2a;padding:18px 16px 14px;position:sticky;top:0;z-index:10}
+.logo-row{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.logo-text-sub{font-size:9px;color:#666;letter-spacing:3px;margin-bottom:3px}
+.logo-text-title{font-size:18px;font-weight:700;color:#fff;letter-spacing:1px}
+.rbtn{margin-left:auto;width:32px;height:32px;border:1px solid #333;background:#0d0d0d;border-radius:6px;cursor:pointer;color:#fff;font-size:15px;display:grid;place-items:center;outline:none;transition:transform .5s ease;flex-shrink:0}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.stat{border:1px solid #2a2a2a;border-radius:6px;padding:8px 6px;text-align:center}
+.stat-num{font-size:18px;font-weight:700}
+.stat-label{font-size:8px;letter-spacing:1.5px;margin-top:2px}
+
+.list{padding:8px 8px 20px;display:flex;flex-direction:column;gap:5px}
+
+.card{background:#0d0d0d;border-radius:8px;overflow:hidden;cursor:pointer;border:1px solid #222;transition:border-color .2s}
+.card.open{border-color:#ff4444}
+.card-top{padding:11px 12px}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.card-num-row{display:flex;align-items:center;gap:7px}
+.dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.cnum{font-size:10.5px;color:#888;letter-spacing:.8px}
+.badge{font-size:9px;font-weight:700;padding:2px 8px;border-radius:3px;letter-spacing:1px}
+.cname{font-weight:700;font-size:13px;margin-top:6px;color:#fff;line-height:1.3;letter-spacing:.2px}
+
+.meta{margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:5px 8px}
+.ml{font-size:11px;color:#777}
+.ml span{color:#ddd;font-weight:700}
+.ml.right{text-align:right}
+.ml.eta span{color:#fff}
+.ml.full{grid-column:1/-1}
+.ml.full span{color:#bbb;font-weight:400}
+
+.prog-wrap{margin-top:9px}
+.prog-bar{height:2px;background:#222;border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;border-radius:2px}
+.prog-labels{display:flex;justify-content:space-between;margin-top:3px}
+.prog-labels span{font-size:9px;color:#555}
+.prog-labels .pct{font-weight:700}
+
+.card-body{border-top:1px solid #1a1a1a;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.last-event{display:flex;align-items:flex-start;gap:7px;padding:8px 10px;background:#060606;border-radius:6px;border:1px solid #1e1e1e}
+.last-event span{font-size:11px;color:#999;line-height:1.5}
+
+.doc-item{display:flex;align-items:center;gap:7px;padding:7px 9px;background:#0a0a0a;border-radius:5px;border:1px solid #2a2a2a}
+.doc-item .doc-name{font-size:11px;color:#ccc;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-item .doc-ext{font-size:9px;color:#666;letter-spacing:1px}
+
+.attach-label{display:flex;align-items:center;gap:7px;padding:9px 11px;background:#060606;border-radius:6px;border:1px dashed #2a2a2a;cursor:pointer}
+.attach-label span.txt{font-size:11px;color:#888;letter-spacing:.3px}
+
+.maersk-btn{display:block;text-align:center;font-size:10px;color:#ff4444;padding:8px;background:rgba(255,68,68,.06);border-radius:6px;text-decoration:none;border:1px solid rgba(255,68,68,.2);letter-spacing:1.5px;font-weight:700}
+
+.footer{border-top:1px solid #1a1a1a;padding:8px 16px;text-align:center}
+.footer span{font-size:8px;color:#555;letter-spacing:2.5px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-row">
+    <svg width="44" height="58" viewBox="0 0 44 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1" y="1" width="42" height="42" stroke="white" stroke-width="1.2"/>
+      <line x1="22" y1="8" x2="22" y2="42" stroke="white" stroke-width="0.9"/>
+      <line x1="22" y1="7" x2="22" y2="19" stroke="white" stroke-width="0.9"/>
+      <line x1="16" y1="13" x2="28" y2="13" stroke="white" stroke-width="0.9"/>
+      <line x1="17" y1="8" x2="27" y2="18" stroke="white" stroke-width="0.7"/>
+      <line x1="27" y1="8" x2="17" y2="18" stroke="white" stroke-width="0.7"/>
+      <line x1="14.5" y1="10.5" x2="29.5" y2="15.5" stroke="white" stroke-width="0.5"/>
+      <line x1="14.5" y1="15.5" x2="29.5" y2="10.5" stroke="white" stroke-width="0.5"/>
+      <rect x="1" y="44" width="42" height="13" stroke="white" stroke-width="1.2" fill="black"/>
+      <text x="22" y="54.5" text-anchor="middle" fill="white" font-family="Arial Black,sans-serif" font-size="11" font-weight="900" letter-spacing="2">GAP</text>
+    </svg>
+    <div>
+      <div class="logo-text-sub">GLOBAL AND PERSONAL</div>
+      <div class="logo-text-title">LOGISTICS</div>
+    </div>
+    <button class="rbtn" id="rbtn" onclick="doRefresh()">↻</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num" style="color:#fff" id="sAll">5</div>
+      <div class="stat-label" style="color:#888">ВСЬОГО</div>
+    </div>
+    <div class="stat" style="border-color:rgba(255,68,68,.3);background:rgba(255,68,68,.07)">
+      <div class="stat-num" style="color:#ff4444" id="sTransit">3</div>
+      <div class="stat-label" style="color:rgba(255,68,68,.7)">В ДОРОЗІ</div>
+    </div>
+    <div class="stat" style="border-color:rgba(76,175,114,.3);background:rgba(76,175,114,.06)">
+      <div class="stat-num" style="color:#4caf72" id="sArrived">1</div>
+      <div class="stat-label" style="color:rgba(76,175,114,.7)">ПРИБУЛО</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" style="color:#fff">47т</div>
+      <div class="stat-label" style="color:#888">ВАГА</div>
+    </div>
+  </div>
+</div>
+
+<div class="list" id="list"></div>
+
+<div class="footer"><span>GLOBAL AND PERSONAL LOGISTICS</span></div>
+
+<script>
+const DATA=[
+  {n:"MSKU4820343",name:"Одяг — партія №12",batch:"ПТ-2024-012",s:"IN_TRANSIT",vessel:"Maersk Sentosa",loc:"Сінгапур",dest:"Владивосток",eta:"2026-04-10",etd:"2026-03-01",weight:"12 400 кг",ev:"Судно вийшло з порту Нінбо 01 бер, 14:22",docs:["Інвойс_012.pdf"]},
+  {n:"TCKU3941207",name:"Електроніка — TV + ноутбуки",batch:"ПТ-2024-009",s:"ARRIVED",vessel:"Maersk Emerald",loc:"Владивосток",dest:"Владивосток",eta:"2026-03-12",etd:"2026-02-18",weight:"8 750 кг",ev:"Розвантажений на терміналі ВМТП",docs:["Інвойс_009.pdf"]},
+  {n:"GESU5712834",name:"Запчастини KIA/Hyundai",batch:"ПТ-2024-014",s:"GATE_IN",vessel:null,loc:"Шанхай",dest:"Находка",eta:"2026-04-22",etd:"2026-03-20",weight:"15 200 кг",ev:"Прийнятий на терміналі Yangshan",docs:[]},
+  {n:"MSCU7103982",name:"Іграшки та товари для дому",batch:"ПТ-2024-011",s:"ON_VESSEL",vessel:"MSC Alessia",loc:"Японське море",dest:"Владивосток",eta:"2026-03-28",etd:"2026-03-10",weight:"6 300 кг",ev:"Занурений на борт у Пусані",docs:["CMR_011.pdf"]},
+  {n:"HLXU2984710",name:"Будматеріали — плитка",batch:"ПТ-2024-015",s:"DEPARTED",vessel:"Hapag Express",loc:"Циндао",dest:"Владивосток",eta:"2026-04-05",etd:"2026-03-14",weight:"4 900 кг",ev:"Відправлений з порту Циндао",docs:[]},
+];
+
+const ST={
+  IN_TRANSIT:{l:"В дорозі",    dot:"#ff4444",bar:"#ff4444",tag:"rgba(255,68,68,.12)", tc:"#ff4444"},
+  ON_VESSEL: {l:"На судні",    dot:"#ff4444",bar:"#ff4444",tag:"rgba(255,68,68,.12)", tc:"#ff4444"},
+  DEPARTED:  {l:"Відправлено", dot:"#fff",   bar:"#fff",   tag:"rgba(255,255,255,.08)",tc:"#ccc"},
+  ARRIVED:   {l:"Прибуло",     dot:"#4caf72",bar:"#4caf72",tag:"rgba(76,175,114,.12)",tc:"#4caf72"},
+  GATE_IN:   {l:"На терміналі",dot:"#aaa",   bar:"#aaa",   tag:"rgba(200,200,200,.1)", tc:"#ccc"},
+};
+
+const fmt=d=>new Date(d).toLocaleDateString("uk-UA",{day:"numeric",month:"short"});
+const pct=(etd,eta)=>{const s=+new Date(etd),e=+new Date(eta),n=Date.now();if(n>=e)return 100;if(n<=s)return 0;return Math.round((n-s)/(e-s)*100);};
+let openIdx=null,angle=0;
+
+function render(){
+  const list=document.getElementById("list");
+  list.innerHTML=DATA.map((c,i)=>{
+    const st=ST[c.s]||{l:c.s,dot:"#888",bar:"#888",tag:"rgba(150,150,150,.1)",tc:"#aaa"};
+    const p=pct(c.etd,c.eta);
+    const isO=openIdx===i;
+
+    const docsHtml=c.docs.map(d=>`
+      <div class="doc-item">
+        <span style="font-size:13px">📄</span>
+        <span class="doc-name">${d}</span>
+        <span class="doc-ext">PDF</span>
+      </div>`).join("");
+
+    const bodyHtml=isO?`
+      <div class="card-body">
+        <div class="last-event">
+          <span style="font-size:12px;margin-top:1px;flex-shrink:0">📍</span>
+          <span>${c.ev}</span>
+        </div>
+        ${docsHtml}
+        <label class="attach-label" onclick="event.stopPropagation()">
+          <span style="font-size:14px">📎</span>
+          <span class="txt">Прикріпити PDF документ</span>
+          <input type="file" accept=".pdf" style="display:none" onchange="addDoc(${i},this)">
+        </label>
+        <a class="maersk-btn" href="https://www.maersk.com/tracking/${c.n}" target="_blank" onclick="event.stopPropagation()">
+          ВІДКРИТИ ТРЕКІНГ MAERSK →
+        </a>
+      </div>`:"";
+
+    return`<div class="card${isO?" open":""}" onclick="toggle(${i})">
+      <div class="card-top">
+        <div class="card-head">
+          <div class="card-num-row">
+            <div class="dot" style="background:${st.dot}"></div>
+            <span class="cnum">${c.n}</span>
+          </div>
+          <span class="badge" style="background:${st.tag};color:${st.tc}">${st.l.toUpperCase()}</span>
+        </div>
+        <div class="cname">${c.name}</div>
+        <div class="meta">
+          <div class="ml">Партія <span>${c.batch}</span></div>
+          <div class="ml right">Вага <span>${c.weight}</span></div>
+          <div class="ml">Відправка <span>${fmt(c.etd)}</span></div>
+          <div class="ml right eta">Прибуття <span>${fmt(c.eta)}</span></div>
+          ${c.vessel?`<div class="ml full">Судно <span>${c.vessel}</span></div>`:""}
+        </div>
+        <div class="prog-wrap">
+          <div class="prog-bar"><div class="prog-fill" style="width:${p}%;background:${st.bar}"></div></div>
+          <div class="prog-labels">
+            <span>${c.loc}</span>
+            <span class="pct" style="color:${st.tc}">${p}%</span>
+            <span>${c.dest}</span>
+          </div>
+        </div>
+      </div>
+      ${bodyHtml}
+    </div>`;
+  }).join("");
+}
+
+function toggle(i){openIdx=openIdx===i?null:i;render();}
+function addDoc(i,inp){if(inp.files[0]){DATA[i].docs.push(inp.files[0].name);openIdx=i;render();}}
+function doRefresh(){const b=document.getElementById("rbtn");angle+=360;b.style.transform=`rotate(${angle}deg)`;}
+render();
+</script>
+</body>
+</html>
