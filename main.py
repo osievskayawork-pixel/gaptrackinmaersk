@@ -1,7 +1,6 @@
 """
 GAP Logistics — Container Tracker API
 FastAPI + Supabase + Maersk Ocean Track & Trace API
-Хостинг: Render.com (free tier)
 """
 
 from fastapi import FastAPI, HTTPException
@@ -26,37 +25,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Supabase ──────────────────────────────────────────
 supabase: Client = create_client(
     os.environ["SUPABASE_URL"],
     os.environ["SUPABASE_KEY"]
 )
 
-# ── Maersk Ocean Track & Trace API ────────────────────
-# Consumer Key з integration.maersk.com → Apps and Keys
 MAERSK_KEY = os.environ.get("MAERSK_CONSUMER_KEY", "")
 MAERSK_URL = "https://api.maersk.com/track-and-trace-private/containers"
 
 
+def parse_date(d):
+    """Парсимо різні формати дат → ISO"""
+    if not d:
+        return None
+    d = str(d).strip()
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%m/%d/%Y", "%d.%m.%Y"):
+        try:
+            return datetime.strptime(d, fmt).strftime("%Y-%m-%d")
+        except:
+            pass
+    return d
+
+
 async def fetch_maersk(number: str) -> dict:
-    """Запит до офіційного Maersk Track & Trace API"""
     headers = {
         "Consumer-Key": MAERSK_KEY,
-        "Accept":       "application/json",
+        "Accept": "application/json",
     }
+    clean = number.upper().strip().replace("\n", "").replace("\r", "")
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.get(
-            f"{MAERSK_URL}/{number.upper()}",
-            headers=headers
-        )
+        resp = await client.get(f"{MAERSK_URL}/{clean}", headers=headers)
         resp.raise_for_status()
         return resp.json()
 
 
 def parse_maersk(raw: dict, number: str) -> dict:
-    """Парсимо відповідь Maersk Track & Trace (DCSA v2.2)"""
     result = {
-        "number":           number.upper(),
+        "number":           number.upper().strip().replace("\n","").replace("\r",""),
         "status":           "UNKNOWN",
         "vessel_name":      None,
         "current_location": None,
@@ -68,49 +73,38 @@ def parse_maersk(raw: dict, number: str) -> dict:
     }
 
     try:
-        # ── Transport Plan (маршрут) ──────────────────
         legs = raw.get("transportPlan", [])
         if legs:
             last_leg = legs[-1]
             pod = last_leg.get("portOfDischarge", {})
             result["destination"] = pod.get("city") or pod.get("UNLocationCode")
-            result["eta"] = (
-                last_leg.get("vesselArrival") or
-                last_leg.get("plannedArrivalDate")
-            )
+            eta_raw = last_leg.get("vesselArrival") or last_leg.get("plannedArrivalDate")
+            result["eta"] = parse_date(eta_raw)
 
-        # Поточний рейс (судно + ETD)
         for leg in legs:
             if leg.get("transportMode") == "VESSEL":
                 result["vessel_name"] = leg.get("vesselName")
-                result["etd"] = (
-                    leg.get("vesselDeparture") or
-                    leg.get("plannedDepartureDate")
-                )
+                etd_raw = leg.get("vesselDeparture") or leg.get("plannedDepartureDate")
+                result["etd"] = parse_date(etd_raw)
                 break
 
-        # ── Milestones (події) ────────────────────────
         containers_data = raw.get("containers", [{}])
         milestones = containers_data[0].get("milestones", []) if containers_data else []
 
         if milestones:
             latest = milestones[-1]
             result["last_event"] = latest.get("description", "")
-
             loc = latest.get("location") or {}
-            result["current_location"] = (
-                loc.get("city") or loc.get("UNLocationCode")
-            )
+            result["current_location"] = loc.get("city") or loc.get("UNLocationCode")
 
-            # Маппінг статусів DCSA → наші
             status_map = {
-                "GATE_IN":         "GATE_IN",
-                "LOADED":          "ON_VESSEL",
-                "DEPARTED":        "DEPARTED",
-                "ARRIVED":         "ARRIVED",
-                "DISCHARGED":      "DISCHARGED",
-                "GATE_OUT":        "GATE_OUT",
-                "IN_TRANSIT":      "IN_TRANSIT",
+                "GATE_IN":    "GATE_IN",
+                "LOADED":     "ON_VESSEL",
+                "DEPARTED":   "DEPARTED",
+                "ARRIVED":    "ARRIVED",
+                "DISCHARGED": "DISCHARGED",
+                "GATE_OUT":   "GATE_OUT",
+                "IN_TRANSIT": "IN_TRANSIT",
             }
             raw_st = latest.get("statusCode", "")
             result["status"] = status_map.get(raw_st, raw_st or "UNKNOWN")
@@ -121,20 +115,19 @@ def parse_maersk(raw: dict, number: str) -> dict:
     return result
 
 
-# ── Щоденне оновлення (06:00 UTC = 09:00 Київ) ───────
 async def refresh_all():
-    log.info("🔄 Оновлення контейнерів...")
+    log.info("Оновлення контейнерів...")
     rows = supabase.table("containers").select("number").execute()
     for row in (rows.data or []):
-        num = row["number"]
+        num = row["number"].strip().replace("\n","")
         try:
             raw    = await fetch_maersk(num)
             parsed = parse_maersk(raw, num)
-            supabase.table("containers").update(parsed).eq("number", num).execute()
+            supabase.table("containers").update(parsed).eq("number", row["number"]).execute()
             log.info(f"  ✓ {num} — {parsed['status']}")
         except Exception as e:
             log.error(f"  ✗ {num}: {e}")
-    log.info("✅ Готово")
+    log.info("Готово")
 
 
 scheduler = AsyncIOScheduler(timezone="UTC")
@@ -143,19 +136,25 @@ scheduler = AsyncIOScheduler(timezone="UTC")
 async def startup():
     scheduler.add_job(refresh_all, "cron", hour=6, minute=0)
     scheduler.start()
-    log.info("Scheduler запущено — щодня о 06:00 UTC")
 
 @app.on_event("shutdown")
 async def shutdown():
     scheduler.shutdown()
 
 
-# ── Endpoints ─────────────────────────────────────────
-
 @app.get("/api/containers")
 async def get_containers():
     result = supabase.table("containers").select("*").order("created_at").execute()
-    return result.data
+    # Очищаємо номери від \n
+    data = result.data
+    for c in data:
+        if c.get("number"):
+            c["number"] = c["number"].strip().replace("\n","").replace("\r","")
+        if c.get("eta"):
+            c["eta"] = parse_date(c["eta"])
+        if c.get("etd"):
+            c["etd"] = parse_date(c["etd"])
+    return data
 
 
 class AddContainer(BaseModel):
@@ -167,15 +166,15 @@ class AddContainer(BaseModel):
 
 @app.post("/api/containers", status_code=201)
 async def add_container(body: AddContainer):
-    number = body.number.upper().strip()
+    number = body.number.upper().strip().replace("\n","").replace("\r","")
     existing = supabase.table("containers").select("number").eq("number", number).execute()
     if existing.data:
         raise HTTPException(400, f"Контейнер {number} вже існує")
     try:
-        raw    = await fetch_maersk(number)
-        data   = parse_maersk(raw, number)
+        raw  = await fetch_maersk(number)
+        data = parse_maersk(raw, number)
     except Exception as e:
-        log.warning(f"Maersk API недоступний для {number}: {e}")
+        log.warning(f"Maersk недоступний для {number}: {e}")
         data = {"number": number, "status": "UNKNOWN", "last_updated": datetime.utcnow().isoformat()}
     data["cargo_name"] = body.cargo_name
     data["batch"]      = body.batch
@@ -186,7 +185,7 @@ async def add_container(body: AddContainer):
 
 @app.delete("/api/containers/{number}")
 async def remove_container(number: str):
-    supabase.table("containers").delete().eq("number", number.upper()).execute()
+    supabase.table("containers").delete().eq("number", number.upper().strip()).execute()
     return {"ok": True}
 
 
